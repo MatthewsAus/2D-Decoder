@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code Decoder with GS1 AI Parser</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .container { max-width: 600px; margin: auto; text-align: center; }
+    input, button { margin-top: 20px; }
+    .output { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>QR Code Decoder</h1>
+    <input type="file" id="qr-input" accept="image/*">
+    <button id="decode-btn">Decode QR Code</button>
+    <div class="output" id="output"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+  
+  <script>
+    const AI_MAP = {
+      '01': 'GTIN',
+      '10': 'Batch/Lot Number',
+      '17': 'Expiration Date',
+      '21': 'Serial Number',
+      // Add other AI mappings as necessary
+    };
+
+    document.getElementById('decode-btn').addEventListener('click', function () {
+      const fileInput = document.getElementById('qr-input');
+      if (fileInput.files.length === 0) {
+        alert("Please upload a QR code image.");
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          context.drawImage(img, 0, 0);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+          // Use jsQR to decode the QR code
+          const qrCode = jsQR(imageData.data, canvas.width, canvas.height);
+          if (qrCode) {
+            displayDecodedData(qrCode.data);
+          } else {
+            alert("No QR code detected. Please try another image.");
+          }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function displayDecodedData(data) {
+      const outputDiv = document.getElementById('output');
+      outputDiv.innerHTML = ''; // Clear previous output
+
+      const lines = data.split('\n').filter(line => line.trim() !== '');
+      const isGS1Code = /^01/.test(lines[0]); // Assuming the QR code starts with a GS1 AI like 01 (GTIN)
+
+      if (isGS1Code) {
+        lines.forEach(line => {
+          const ai = line.substring(0, 2); // Extract AI (first 2 characters)
+          const value = line.substring(2); // Extract value
+          const aiName = AI_MAP[ai] || 'Unknown AI';
+
+          const row = document.createElement('div');
+          row.textContent = `${aiName} (${ai}): ${value}`;
+          outputDiv.appendChild(row);
+        });
+      } else {
+        // If it's not a GS1 QR code, just display the decoded text
+        const text = document.createElement('div');
+        text.textContent = `Decoded Text: ${data}`;
+        outputDiv.appendChild(text);
+
+        // Check if it's a URL
+        if (isValidURL(data)) {
+          const link = document.createElement('a');
+          link.href = data;
+          link.textContent = 'Open Link';
+          link.target = '_blank';
+          outputDiv.appendChild(link);
+        }
+      }
+    }
+
+    function isValidURL(string) {
+      try {
+        new URL(string);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+  </script>
+</body>
+</html>
